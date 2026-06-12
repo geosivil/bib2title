@@ -1,7 +1,7 @@
 # bib2title
 A simple converter from bibtex to title in markdown and plain text format. 
 
-# Physics Citation Converter
+# Simple Citation Converter
 
 A lightweight, browser-based tool to convert raw BibTeX entries into formatted Plain Text or Markdown citations tailored specifically for physics journals. 
 
