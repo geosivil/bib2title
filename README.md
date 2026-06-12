@@ -21,7 +21,7 @@ Many standard citation generators fail to format physics citations correctly (e.
 * Optica (formerly OSA)
 
 ## How to Use
-1. Open `citation-converter.html` in any web browser.
+1. Open `bib2title.html` in any web browser.
 2. Paste your raw BibTeX string into the input box.
 3. Select your target journal style and output format (Markdown or Plain Text).
 4. Toggle "Include titles" on or off.
