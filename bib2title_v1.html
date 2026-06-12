@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Physics Citation Converter</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            max-width: 850px;
+            margin: 2rem auto;
+            padding: 0 1rem;
+            background-color: #f9fafb;
+            color: #1f2937;
+        }
+        h1 {
+            font-size: 1.5rem;
+            margin-bottom: 1.5rem;
+        }
+        .container {
+            background: white;
+            padding: 1.5rem;
+            border-radius: 8px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+        label {
+            display: block;
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+            margin-top: 1rem;
+        }
+        textarea {
+            width: 100%;
+            height: 200px;
+            padding: 0.75rem;
+            border: 1px solid #d1d5db;
+            border-radius: 4px;
+            font-family: monospace;
+            font-size: 0.9rem;
+            box-sizing: border-box;
+            resize: vertical;
+        }
+        .controls {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 2rem;
+            margin: 1rem 0;
+            background: #f3f4f6;
+            padding: 1rem;
+            border-radius: 4px;
+        }
+        .control-group {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+            min-width: 150px;
+        }
+        .control-group h3 {
+            margin: 0 0 0.5rem 0;
+            font-size: 0.9rem;
+            color: #4b5563;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+        .control-group label {
+            margin-top: 0;
+            font-weight: normal;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            cursor: pointer;
+        }
+        button {
+            background-color: #2563eb;
+            color: white;
+            border: none;
+            padding: 0.75rem 1.5rem;
+            border-radius: 4px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+        button:hover {
+            background-color: #1d4ed8;
+        }
+        button.secondary {
+            background-color: #4b5563;
+            margin-top: 1rem;
+        }
+        button.secondary:hover {
+            background-color: #374151;
+        }
+        #output {
+            height: 120px;
+            background-color: #f8fafc;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <h1>Physics Citation Converter</h1>
+        
+        <label for="bibtex">Input BibTeX:</label>
+        <textarea id="bibtex" placeholder="Paste your @article{...} or @book{...} here..." oninput="convert()"></textarea>
+
+        <div class="controls">
+            <div class="control-group">
+                <h3>Style</h3>
+                <label><input type="radio" name="style" value="aps" onchange="convert()" checked> 9. APS</label>
+                <label><input type="radio" name="style" value="aip" onchange="convert()"> 10. AIP</label>
+                <label><input type="radio" name="style" value="nature" onchange="convert()"> 12. Nature</label>
+                <label><input type="radio" name="style" value="science" onchange="convert()"> 13. Science</label>
+                <label><input type="radio" name="style" value="optica" onchange="convert()"> 18. Optica</label>
+            </div>
+            
+            <div class="control-group">
+                <h3>Format</h3>
+                <label><input type="radio" name="format" value="markdown" onchange="convert()" checked> Markdown</label>
+                <label><input type="radio" name="format" value="plain" onchange="convert()"> Plain Text</label>
+            </div>
+
+            <div class="control-group">
+                <h3>Options</h3>
+                <label><input type="checkbox" id="include-titles" onchange="convert()" checked> Include titles</label>
+            </div>
+        </div>
+
+        <button onclick="convert()">Convert Citation</button>
+
+        <label for="output">Output:</label>
+        <textarea id="output" readonly></textarea>
+        <button class="secondary" id="copy-btn" onclick="copyOutput()">Copy to Clipboard</button>
+    </div>
+
+    <script>
+        function parseBibtex(bib) {
+            const getField = (field) => {
+                // Smarter regex: looks for closing brace/quote followed by a comma or the end of the entry
+                const regexStr = `${field}\\s*=\\s*(?:\\{([\\s\\S]*?)\\}(?:\\s*,|\\s*(?=\\}|$))|"([\\s\\S]*?)"(?:\\s*,|\\s*(?=\\}|$))|([^,\\s][^,]*?)(?:\\s*,|\\s*(?=\\}|$)))`;
+                const regex = new RegExp(regexStr, 'i');
+                const match = bib.match(regex);
+                if (match) {
+                    let val = match[1] !== undefined ? match[1] : (match[2] !== undefined ? match[2] : match[3]);
+                    return val ? val.replace(/[\n\r]+/g, ' ').trim() : "";
+                }
+                return "";
+            };
+
+            return {
+                authors: getField("author"),
+                title: getField("title"),
+                journal: getField("journal"),
+                booktitle: getField("booktitle"),
+                publisher: getField("publisher"),
+                volume: getField("volume"),
+                pages: getField("pages"),
+                year: getField("year"),
+                doi: getField("doi")
+            };
+        }
+
+        function formatAuthors(authorsRaw, style) {
+            if (!authorsRaw) return "";
+            
+            const authorsList = authorsRaw.split(/\s+and\s+/i).map(a => a.trim());
+            const parsedAuthors = authorsList.map(author => {
+                if (author.includes(",")) {
+                    const parts = author.split(",").map(p => p.trim());
+                    if (parts.length === 2) return { first: parts[1], last: parts[0] };
+                }
+                const parts = author.split(" ");
+                const last = parts.pop();
+                return { first: parts.join(" "), last: last };
+            });
+
+            if (style === 'nature') {
+                const formatted = parsedAuthors.map(a => `${a.last}, ${a.first}`);
+                if (formatted.length === 1) return formatted[0];
+                if (formatted.length === 2) return `${formatted[0]} & ${formatted[1]}`;
+                return formatted.slice(0, -1).join(", ") + ` & ${formatted[formatted.length - 1]}`;
+            } else if (style === 'science') {
+                const formatted = parsedAuthors.map(a => `${a.first} ${a.last}`);
+                return formatted.join(", ");
+            } else {
+                const formatted = parsedAuthors.map(a => `${a.first} ${a.last}`);
+                if (formatted.length === 1) return formatted[0];
+                if (formatted.length === 2) return `${formatted[0]} and ${formatted[1]}`;
+                return formatted.slice(0, -1).join(", ") + `, and ${formatted[formatted.length - 1]}`;
+            }
+        }
+
+        function convert() {
+            const bibText = document.getElementById('bibtex').value;
+            if (!bibText.trim()) {
+                document.getElementById('output').value = "";
+                return;
+            }
+
+            const data = parseBibtex(bibText);
+            const style = document.querySelector('input[name="style"]:checked').value;
+            const format = document.querySelector('input[name="format"]:checked').value;
+            const includeTitles = document.getElementById('include-titles').checked;
+            const isMd = format === 'markdown';
+
+            const authorStr = formatAuthors(data.authors, style);
+            
+            // Handle Title: Strip curly braces {} but keep original capitalization
+            let finalTitle = data.title;
+            if (finalTitle) {
+                finalTitle = finalTitle.replace(/[{}]/g, '');
+            }
+
+            // Handle non-articles gracefully (fallback to booktitle or publisher)
+            const pubSource = data.journal || data.booktitle || data.publisher || "";
+            const j = pubSource ? (isMd ? `*${pubSource}*` : pubSource) : "";
+            
+            const v = data.volume ? (isMd ? `**${data.volume}**` : data.volume) : "";
+            const firstPage = data.pages ? (data.pages.includes("--") ? data.pages.split("--")[0] : data.pages.split("-")[0]) : "";
+            const allPages = data.pages ? data.pages.replace("--", "–") : ""; 
+            const link = data.doi ? `\nhttps://doi.org/${data.doi}` : "";
+
+            let result = "";
+
+            // Dynamic strings to avoid floating commas if fields are missing
+            const volStr = v ? ` ${v}` : "";
+            const pageStrAPS = firstPage ? `, ${firstPage}` : "";
+            const pageStrNat = allPages ? `, ${allPages}` : "";
+
+            if (style === 'aps') {
+                const titleStr = (finalTitle && includeTitles) ? `"${finalTitle}," ` : "";
+                result = `${authorStr}, ${titleStr}${j}${volStr}${pageStrAPS} (${data.year}).${link}`;
+            } 
+            else if (style === 'aip') {
+                const titleStr = (finalTitle && includeTitles) ? `"${finalTitle}," ` : "";
+                result = `${authorStr}, ${titleStr}${j}${volStr}${pageStrAPS} (${data.year}).${link}`;
+            }
+            else if (style === 'nature') {
+                const titleStr = (finalTitle && includeTitles) ? `${finalTitle}. ` : "";
+                result = `${authorStr}. ${titleStr}${j}${volStr}${pageStrNat} (${data.year}).${link}`;
+            }
+            else if (style === 'science') {
+                const titleStr = (finalTitle && includeTitles) ? `${finalTitle}. ` : "";
+                result = `${authorStr}, ${titleStr}${j}${volStr}${pageStrNat} (${data.year}).${link}`;
+            }
+            else if (style === 'optica') {
+                const titleStr = (finalTitle && includeTitles) ? `"${finalTitle}," ` : "";
+                result = `${authorStr}, ${titleStr}${j}${volStr}${pageStrNat} (${data.year}).${link}`;
+            }
+
+            document.getElementById('output').value = result;
+        }
+
+        async function copyOutput() {
+            const outputText = document.getElementById('output').value;
+            const btn = document.getElementById('copy-btn');
+            const originalText = btn.innerText;
+
+            try {
+                // Modern clipboard standard
+                await navigator.clipboard.writeText(outputText);
+                btn.innerText = 'Copied!';
+            } catch (err) {
+                console.error('Modern clipboard API failed, falling back:', err);
+                // Fallback for strict browser security policies
+                const output = document.getElementById('output');
+                output.select();
+                document.execCommand('copy');
+                btn.innerText = 'Copied!';
+            }
+
+            setTimeout(() => {
+                btn.innerText = originalText;
+            }, 2000);
+        }
+    </script>
+</body>
+</html>
